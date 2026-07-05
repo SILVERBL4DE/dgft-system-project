@@ -1,0 +1,63 @@
+erDiagram
+    %% Purpose Code Master
+    dgft_purpose_code_master {
+        string id PK "UUID"
+        string code "Purpose Code (e.g. P0104)"
+        string description
+        string status "ACTIVE/INACTIVE"
+    }
+
+    %% ORM Master (Core Record)
+    dgft_orm_master {
+        string id PK "UUID"
+        string orm_number "Unique Remittance Number"
+        decimal orm_amount
+        date orm_date
+        string ad_code "7-digit Authorised Dealer Code"
+        string ie_code "10-digit Importer/Exporter Code"
+        string purpose_code FK "Matches dgft_purpose_code_master"
+        string dgft_status "Awaiting request initiated, VALIDATED, PROCESSED, FAILED"
+        string status "ACTIVE, CANCELLED"
+        string added_by
+        datetime added_date
+    }
+
+    %% History table tracking changes
+    dgft_orm_master_his {
+        string id PK "UUID"
+        string orm_id FK "Matches dgft_orm_master.id"
+        string trigger_status "Event triggering snapshot (e.g. CANCELLED)"
+        datetime trigger_date
+        string orm_number
+        decimal orm_amount
+    }
+
+    %% Message Master (Batch Header)
+    dgft_orm_message_master {
+        string id PK "UUID"
+        string bank_unique_transaction_id "Batch TX ID"
+        string status "CREATED, MSG_PUSH_SUCCESS, MSG_PUSH_FULLY_PROCESSED"
+        string dgft_ack_status "Validated, Processed, FAILED"
+    }
+
+    %% Message Detail (Batch Items connecting ORMs to Batch Header)
+    dgft_orm_message_detail {
+        string id PK "UUID"
+        string dgft_orm_message_master_id FK "Matches dgft_orm_message_master.id"
+        string dgft_orm_master_id FK "Matches dgft_orm_master.id"
+        string status "NEW, PENDING, PROCESSED, FAILED"
+    }
+
+    %% Transaction Status Log (API Logging)
+    dgft_orm_msg_tx_status_log {
+        string id PK "UUID"
+        string dgft_orm_message_master_id FK "Matches dgft_orm_message_master.id"
+        string dgft_tx_status_json_obj "Raw JSON response/payload"
+    }
+
+    %% Relationships
+    dgft_purpose_code_master ||--o{ dgft_orm_master : "validates"
+    dgft_orm_master ||--o{ dgft_orm_master_his : "maintains history"
+    dgft_orm_master ||--o{ dgft_orm_message_detail : "associated with"
+    dgft_orm_message_master ||--|{ dgft_orm_message_detail : "contains batch items"
+    dgft_orm_message_master ||--o{ dgft_orm_msg_tx_status_log : "logs API status"

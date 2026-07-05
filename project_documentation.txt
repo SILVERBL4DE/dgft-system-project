@@ -1,0 +1,214 @@
+================================================================================
+           DGFT OUTWARD REMITTANCE REPORTING SYSTEM - DOCUMENTATION
+================================================================================
+
+1. PROJECT OVERVIEW
+--------------------------------------------------------------------------------
+The DGFT Outward Remittance (ORM) Reporting System is a Spring Boot application 
+designed to automate and monitor the lifecycle of outward remittance records 
+reported to the Directorate General of Foreign Trade (DGFT). 
+
+It features JWT security, role-based access control, file upload processing, 
+JPA auditing, custom ownership verification, and an automated scheduler pipeline 
+that batches ORM records into groups of 20 for transmission and status syncing.
+
+2. LOGICAL FLOW & SCHEDULER LIFECYCLE
+--------------------------------------------------------------------------------
+Below is the sequential lifecycle of an ORM record, transitioning across statuses 
+defined in the Excel design:
+
+Step A: Ingestion (CSV File Upload)
+  - A user with Role 'MAKER' uploads a pipe-delimited (|) CSV file.
+  - The system validates formatting rules (AD Code = 7 chars, IE Code = 10 chars, 
+    mandatory fields, and existence of the Purpose Code in the database).
+  - Valid records are inserted into the 'dgft_orm_master' table with:
+    * STATUS = 'ACTIVE'
+    * DGFT_STATUS = 'Awaiting request initiated'
+    * FLAG = 'N' (New)
+    * DGFT_FLAG = 'F' (Fresh)
+
+Step B: Batch Staging (DgftOrmPushScheduler)
+  - Periodically reads records in 'Awaiting request initiated' state.
+  - Groups them into batches of exactly 20.
+  - For each batch, a single header is inserted in 'dgft_orm_message_master' 
+    with a 'Bank Unique Transaction ID' (e.g., TXN-UUID).
+  - Individual mappings are added in 'dgft_orm_message_detail'.
+  - Staging records transition to:
+    * Master DGFT_STATUS -> 'Request initiated'
+    * Detail Status -> 'NEW'
+    * Message Master Status -> 'CREATED'
+
+Step C: API Transmission Mock (DgftApiPushScheduler)
+  - Selects pending messages in 'CREATED' status and simulates a government API call.
+  - The Message Master status transitions to 'MSG_PUSH_SUCCESS'.
+  - The Detail status transitions to 'PENDING'.
+  - Logs a JSON response payload into 'dgft_orm_msg_tx_status_log'.
+
+Step D: Enquiry & Sync (DgftEnquiryScheduler)
+  - Synchronizes status from the staging tables back to the master table.
+  - Updates Master DGFT_STATUS to 'VALIDATED' for records corresponding to 
+    detailed logs that have been pushed.
+
+Step E: Mock Government Processing (DgftProcessedStatusScheduler)
+  - Simulates the asynchronous processing done on the government portal.
+  - Randomly selects batches to succeed (PROCESSED) or fail (FAILED).
+  - Sets Master DGFT_STATUS and Detail status to 'PROCESSED' or 'FAILED'.
+  - Logs audit history details into 'dgft_orm_msg_tx_status_log'.
+
+Step F: Export Report (DgftCsvExportScheduler)
+  - Reads finalized records ('PROCESSED' and 'FAILED') from 'dgft_orm_master'.
+  - Generates a timestamped CSV report in the '/exports/' project root folder.
+
+--------------------------------------------------------------------------------
+3. ER DIAGRAM & SCHEMA RELATIONSHIPS
+--------------------------------------------------------------------------------
+
+   +--------------------------+
+   |  dgft_purpose_code_master|
+   +--------------------------+
+   | PK code (VARCHAR)        |
+   |    description (VARCHAR) |
+   |    status (VARCHAR)      |
+   +--------------------------+
+                |
+                | (validates purpose_code)
+                v
+   +------------------------------------+
+   |          dgft_orm_master           |
+   +------------------------------------+
+   | PK id (VARCHAR)                    |
+   |    orm_number (VARCHAR)            |
+   |    orm_amount (DECIMAL)            |
+   |    orm_date (DATE)                 |
+   |    ad_code (VARCHAR)               |
+   |    ie_code (VARCHAR)               |
+   |    purpose_code (VARCHAR)          |
+   |    dgft_status (VARCHAR)           |  <--- Syncs from staging
+   |    status (VARCHAR)                |
+   |    added_by (VARCHAR)              |
+   |    added_date (DATETIME)           |
+   +------------------------------------+
+                |
+                | (referenced when modified/cancelled)
+                v
+   +------------------------------------+
+   |         dgft_orm_master_his        |
+   +------------------------------------+
+   | PK id (VARCHAR)                    |
+   |    orm_id (VARCHAR)                |  (History Snapshot)
+   |    trigger_status (VARCHAR)        |  (e.g., 'CANCELLED')
+   |    trigger_date (DATETIME)         |
+   +------------------------------------+
+
+                                +-------------------------------+
+                                |    dgft_orm_message_master    |
+                                +-------------------------------+
+                                | PK id (VARCHAR)               |
+                                |    bank_unique_tx_id (VARCHAR)|
+                                |    status (VARCHAR)           |
+                                |    dgft_ack_status (VARCHAR)  |
+                                +-------------------------------+
+                                    |                       |
+                  (1-to-Many Details)                       | (1-to-Many Logs)
+                                    v                       v
+     +--------------------------------+   +----------------------------------+
+     |     dgft_orm_message_detail    |   |    dgft_orm_msg_tx_status_log    |
+     +--------------------------------+   +----------------------------------+
+     | PK id (VARCHAR)                |   | PK id (VARCHAR)                  |
+     | FK message_master_id (VARCHAR) |   | FK message_master_id (VARCHAR)   |
+     | FK orm_master_id (VARCHAR)     |   |    dgft_tx_status_json_obj (TEXT)|
+     |    status (VARCHAR)            |   +----------------------------------+
+     +--------------------------------+
+
+--------------------------------------------------------------------------------
+4. DIRECTORY & FILE BREAKDOWN
+--------------------------------------------------------------------------------
+* com.htc.dgft
+  - DgftSystemApplication.java : Main application runner. Annotated with 
+    @EnableScheduling to start the automated cron execution.
+
+* com.htc.dgft.config
+  - SecurityConfig.java      : Spring Security filter chain setup. Disables csrf, 
+    httpBasic, and formLogin. Whitelists auth endpoints, error paths, and Swagger.
+  - JpaAuditConfig.java       : Enables JPA Auditing to automatically set addedBy/addedDate.
+  - OpenApiConfig.java       : Swagger/OpenAPI setup defining JWT Bearer token authorization.
+  - DataInitializer.java     : Seeds User roles, 4 default users (admin, maker, checker, viewer),
+    standard purpose codes, and 25 initial dummy ORMs for testing.
+
+* com.htc.dgft.entity
+  - BaseEntity.java          : Common audited base mappings (@CreatedBy, @CreatedDate).
+  - User.java / Role.java    : Entities representing security users and authorization.
+  - DgftOrmMaster.java       : Represents core Outward Remittance Master records.
+  - DgftOrmMasterHis.java    : History table tracking snapshots of master modifications.
+  - DgftOrmMessageMaster.java: Header table for batched submissions.
+  - DgftOrmMessageDetail.java: Detailed mapping linking ORMs to batch headers.
+  - DgftOrmMsgTxStatusLog.java: JSON transaction status logging.
+  - DgftPurposeCodeMaster.java: Directory of supported purpose codes.
+
+* com.htc.dgft.dto
+  - request/AuthRequest.java : Login request wrapper containing username and password.
+  - response/AuthResponse.java: Login response containing the generated JWT.
+  - response/DgftOrmMasterResponseVO.java: View Object used to mask sensitive fields 
+    (like PAN numbers) when returning ORM data through controllers.
+
+* com.htc.dgft.security
+  - CustomUserDetails.java   : Custom principal mapping authorities.
+  - CustomUserDetailsService.java: Loads CustomUserDetails from DB.
+  - JwtService.java          : Utility handling token extraction, validation, and generation.
+  - JwtAuthenticationFilter.java: Security filter intercepting JWT bearer headers.
+  - CustomAuthenticationEntryPoint.java: Returns structured 401 JSON for missing tokens.
+  - CustomAccessDeniedHandler.java: Returns structured 403 JSON for role mismatch.
+  - OrmSecurity.java         : Ownership checker preventing a MAKER from modifying another's file.
+
+* com.htc.dgft.scheduler
+  - DgftOrmPushScheduler.java: Automates batching of 20 awaiting records.
+  - DgftApiPushScheduler.java: Simulates outward government API push.
+  - DgftEnquiryScheduler.java: Syncs staging detailed status to master table.
+  - DgftProcessedStatusScheduler.java: Simulates processing success/failure logs.
+  - DgftCsvExportScheduler.java: Writes finalized records to reports.
+
+* com.htc.dgft.controller
+  - AuthController.java      : Authentication endpoints (/api/auth/login).
+  - OrmMasterController.java : Outward Remittance CRUD endpoints. Uses OrmSecurity.
+  - ScreenUploadController.java: Endpoint to accept multipart CSV file uploads.
+  - SchedulerTriggerController.java: Allows manual trigger of any/all schedulers.
+
+--------------------------------------------------------------------------------
+5. API ENDPOINTS & HOW TO USE
+--------------------------------------------------------------------------------
+
+1. User Authentication (Login)
+   - Method: POST
+   - URL: http://localhost:8081/api/auth/login
+   - Request Body (JSON):
+     {
+       "username": "maker",
+       "password": "maker123"
+     }
+   - Response (JSON):
+     {
+       "token": "eyJhbGciOiJIUzI1NiJ9..."
+     }
+   - Usage: Copy the token string. In Swagger UI, click the "Authorize" button 
+     at the top, paste the token, and close. For Postman, add "Bearer <token>" 
+     in the Authorization header.
+
+2. CSV File Ingestion
+   - Method: POST
+   - URL: http://localhost:8081/api/upload/orm
+   - Headers: Authorization Bearer header (Maker or Admin role required)
+   - Request Body: form-data containing key 'file' mapped to a valid pipe (|) delimited CSV file.
+
+3. Cancel/Delete ORM Record
+   - Method: DELETE
+   - URL: http://localhost:8081/api/orm/{id}/cancel
+   - Security: Creator-Only. Restricted to Admin or the specific Maker who created the record.
+   - Result: Inserts snapshot to History, sets status to 'CANCELLED'.
+
+4. Trigger All Schedulers Sequentially (E2E Test)
+   - Method: POST
+   - URL: http://localhost:8081/api/scheduler/run-all
+   - Security: Admin role required.
+   - Result: Sequentially executes batching, api-push, enquiry-sync, final processing simulation, 
+     and CSV file generation. Writes result file into "/exports/".
+================================================================================
