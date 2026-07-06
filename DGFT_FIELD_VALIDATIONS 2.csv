@@ -1,0 +1,16 @@
+Field Label,DB Column,DB Type / Length,Entity Constraints,Validation Logic
+IRM Number,IRM_NUMBER,VARCHAR2(50),@Size(max = 50),"Mandatory, ALPHA_NUMERIC"
+Remittance Amount,REMITTANCE_AMOUNT,VARCHAR2(20),@Size(max = 21),"Mandatory, numeric regex, must be > 1"
+Remittance Date,REMITTANCE_DATE,VARCHAR2(20),@Size(max = 30),"Mandatory, valid date, not in future, not before cutoff, not after IRM issue date"
+AD Code,AD_CODE,VARCHAR2(50),@Size(max = 7),"Mandatory, alphanumeric, must exist in AD_MASTER"
+Currency,CURRENCY,VARCHAR2(50),@Size(max = 3),"Mandatory, alphanumeric, must exist in currency_master"
+IFSC Code,IFSC_CODE,VARCHAR2(11),@Size(max = 20),"Mandatory, (11-char alphanumeric)"
+IE Code,IE_CODE,VARCHAR2(50),@Size(max = 10),"Optional,  (10-char alphanumeric)"
+Remitter Name,REMITTER_NAME,VARCHAR2(250),@Size(max = 200),"Mandatory, regex match [a-zA-Z0-9-_/\\\\.,;:*!#$@+^?\\s]"
+Remitter Country,REMITTER_COUNTRY,VARCHAR2(2),@Size(max = 20),"Mandatory, alphabets, must exist in country_master"
+Purpose of Remittance,PURPOSE_OF_REMITTANCE,VARCHAR2(8),@Size(max = 10),"Mandatory, must exist in purpose_code_master , regex match [a-zA-Z0-9-_/\\\\s]+"
+Bank Account Number,BANK_ACCOUNT_NUMBER,VARCHAR2(25),@Size(max = 25)," Mandatory, Max 25 chars  , (allows alphanumeric + hypen)"
+Bank Reference Number,BANK_REFERENCE_NUMBER,VARCHAR2(20),@Size(max = 20),"Max 20 chars  , (allows alphanumeric + hypen)"
+IRM Issue Date,IRM_ISSUE_DATE,VARCHAR2(50),-,Optional; validated if present. Compared with remittance date
+PAN Number,PAN_NUMBER,VARCHAR2(10),@Size(max = 200),"Mandatory, (10-char alphanumeric)"
+INR Credit Amount,INR_CREDIT_AMOUNT,VARCHAR2(50),-,Optional

@@ -1,0 +1,163 @@
+DGFT END TO END FLOW FOR NEW RECORDS,,,,,
+STEP NUMBER,STEP DESCRIPTION,STEPS PERFORMED IN,ACTION PERFORMED,CHANGES OCCUR IN APPLICATION LEVEL,TABLES IMPACTED IN DB LEVEL
+1,To create new IRM data that will be reported to DGFT,DGFT IRM Master screen/ Bank Interfaces - DGFT IRM Master,New IRM data inserted into application via DGFT IRM master screen/DGFT IRM master screen upload/Bank Interface - DGFT IRM master scheduler,"New entry is pushed into DGFT_IRM_MASTER table with provided IRM details in the below format : 
+* FLAG : N (with workflow)/Y(without workflow)
+* STATUS  :  ACTIVE
+* DGFT_FLAG : F
+* DGFT_STATUS : Awaiting Workflow approval/Awaiting request initiated",DGFT_IRM_MASTER
+2,To push the created IRM to intermediate staging table for DGFT reporting,DGFT IRM Push Service Scheduler,Created IRM data need to pushed to DGFT application via API.For this process fresh created IRM data need to be pushed to intermediate staging table by executing DGFT IRM Push Service Scheduler.,"Post scheduler execution, irm details changes as follows:
+* FLAG  : P
+* STATUS : ACTIVE
+* DGFT_FLAG : F
+* DGFT_STATUS  : Request initiated
+* Bank unique transaction id : unique transaction id should be generated post scheduler execution
+IRM details pushed into the staging tables will be maintained as follows : 
+ in DGFT_IRM_MESSAGE_MASTER
+* basic details - unique transaction id,request json structure
+* status : MSG_PUSH_NEW
+* DGFT_ACK_STATUS : REQUEST_INITIATED
+ in DGFT_IRM_MESSAGE_DETAIL
+* status : NEW
+* DGFT_ACK_STATUS : null","DGFT_IRM_MASTER
+DGFT_IRM_MESSAGE_MASTER
+DGFT_IRM_MESSAGE_DETAIL"
+3,To execute API scheduler for pushing the details to DGFT,DGFT API IRM Push Service Scheduler,IRM details available in the staging tables should be reported to DGFT end. For this process DGFT API IRM Push Service Scheduler is executed.,"Once the API scheduler is scheduled & IRM details are pushed to DGFT end , the details in the staging table gets updated as follows: 
+in DGFT_IRM_MESSAGE_MASTER 
+DGFT_ACK_STATUS : Validated
+Status :  MSG_PUSH_SUCCESS
+in DGFT_IRM_MESSAGE_DETAIL
+DGFT_ACK_STATUS : null 
+STATUS : PENDING
+","DGFT_IRM_MESSAGE_MASTER
+DGFT_IRM_MESSAGE_DETAIL"
+4,To execute Enquiry scheduler for reviewing the status of IRM pushed into staging table,DGFT IRM Enquiry Service Scheduler,"To view the status of IRM details pushed to the staging table for DGFT reporting, DGFT IRM Enquiry Service Scheduler needs to be executed. Once this scheduler is executed, it will update the progress in reporting IRM details to DGFT end in TRRACS end for our better understanding.","Once the DGFT IRM Enquiry Service Scheduler is executed,the details in the main tables get updated as follows : 
+FLAG : P
+STATUS : ACTIVE
+DGFT_FLAG : F 
+DGFT_STATUS : VALIDATED
+MASTER_DETAIL_STATUS : MSG_PUSH_SUCCESS",DGFT_IRM_MASTER
+5 (i),To execute the get response status API scheduler to check if the records have been reviewed at DGFT end and to retrieve its status,DGFT API IRM Processed Status Service Scheduler,"To check if the IRM data reported via API request have been successfully reviewed by DGFT, we need to execute DGFT API IRM Processed status scheduler. This scheduler post execution will return the response provided by DGFT for the details shared to their end. The response received from DGFT for these records can either be Acknowledged /Failed.","* For cases where DGFT has still not reviewed the reported records,post this scheduler execution the details gets updated in the staging data in the below format : 
+in DGFT_IRM_MESSAGE_MASTER 
+DGFT_ACK_STATUS : Validated
+STATUS : MSG_PUSH_PENDING_PROCESS
+in DGFT_IRM_MESSAGE_DETAIL
+STATUS : PENDING
+DGFT_ACK_STATUS : Validated
+
+* For cases where DGFT has reviewed the reported records and returned a success reponse,post scheduler execution the details gets updated in the staging data in the below format : 
+in DGFT_IRM_MESSAGE_MASTER 
+DGFT_ACK_STATUS : Processed
+STATUS : MSG_PUSH_FULLY_PROCESSED
+in DGFT_IRM_MESSAGE_DETAIL
+STATUS : PROCESSED
+DGFT_ACK_STATUS : Processed","DGFT_IRM_MESSAGE_MASTER
+DGFT_IRM_MESSAGE_DETAIL"
+5(ii),To execute the get response status API scheduler to check if the records have been reviewed at DGFT end and to retrieve its status,DGFT API IRM Processed Status Service Scheduler,"To check if the IRM data reported via API request have been successfully reviewed by DGFT, we need to execute DGFT API IRM Processed status scheduler. This scheduler post execution will return the response provided by DGFT for the details shared to their end. The response received from DGFT for these records can either be Acknowledged /Failed.","* For cases where DGFT has reviewed the reported records and returned a failure response, post scheduler execution the details gets updated in the staging data in the below format : 
+
+1. when the entire records provided in the request fails, the details get updated as follows : 
+in DGFT_IRM_MESSAGE_MASTER
+DGFT_ACK_STATUS : FAILED
+STATUS : MSG_PUSH_PROCESS_FAILED
+in DGFT_IRM_MESSAGE_DETAIL
+STATUS : FAILED
+DGFT_ACK_STATUS : Errored
+
+2. when any one record/multiple records provided in the request fails,the details get updated as follows : 
+in DGFT_IRM_MESSAGE_MASTER
+DGFT_ACK_STATUS : Processed
+STATUS : MSG_PUSH_FULLY_PROCESSED
+in DGFT_IRM_MESSAGE_DETAIL
+STATUS : FAILED
+DGFT_ACK_STATUS : Errored","DGFT_IRM_MESSAGE_MASTER
+DGFT_IRM_MESSAGE_DETAIL"
+6,To execute Enquiry scheduler for reviewing the status of IRM pushed into staging table,DGFT IRM Enquiry Service Scheduler,"To view the status of IRM details pushed to the staging table for DGFT reporting, DGFT IRM Enquiry Service Scheduler needs to be executed. Once this scheduler is executed, it will update the progress in reporting IRM details to DGFT end in TRRACS end for our better understanding.","Once the DGFT IRM Enquiry Service Scheduler is executed,the details in the main tables get updated as follows : 
+FLAG : A/F [depending on dgft response for that record]
+STATUS : ACTIVE
+DGFT_FLAG : F 
+DGFT_STATUS : PROCESSED/FAILED  [depending on dgft response for that record]
+MASTER_DETAIL_STATUS : MSG_PUSH_FULLY_PROCESSED/MSG_PUSH_PROCESS_FAILED [status from staging table]",DGFT_IRM_MASTER
+,,,,,
+DGFT END TO END FLOW FOR CANCELLED RECORDS,,,,,
+STEP NUMBER,STEP DESCRIPTION,STEPS PERFORMED IN,ACTION PERFORMED,CHANGES OCCUR IN APPLICATION LEVEL,TABLES IMPACTED IN DB LEVEL
+1,To cancel the IRM Data available in EDIS application,DGFT IRM Master screen,Details available in the screen can be cancelled with the help of cancel option available in screen/by using cancellation upload for bulk cases.,"Details updated in DGFT_IRM_MASTER table in the below format : 
+* FLAG : V (with workflow)/ C(without workflow)
+* STATUS  :  CANCELLED
+* DGFT_FLAG : C
+* DGFT_STATUS : Awaiting Workflow approval/Awaiting request initiated",DGFT_IRM_MASTER
+2,To push the IRM to intermediate staging table for DGFT reporting,DGFT IRM Push Service Scheduler,Cancelled IRM data need to pushed to DGFT application via API.For this process cancelled IRM data need to be pushed to intermediate staging table by executing DGFT IRM Push Service Scheduler.,"Post scheduler execution, irm details changes as follows:
+* FLAG  : P
+* STATUS : CANCELLED
+* DGFT_FLAG : C
+* DGFT_STATUS  : Request initiated
+* Bank unique transaction id : unique transaction id should be generated post scheduler execution
+IRM details pushed into the staging tables will be maintained as follows : 
+ in DGFT_IRM_MESSAGE_MASTER
+* basic details - unique transaction id,request json structure
+* status : MSG_PUSH_NEW
+* DGFT_ACK_STATUS : REQUEST_INITIATED
+ in DGFT_IRM_MESSAGE_DETAIL
+* status : NEW
+* DGFT_ACK_STATUS : null","DGFT_IRM_MASTER
+DGFT_IRM_MESSAGE_MASTER
+DGFT_IRM_MESSAGE_DETAIL"
+3,To execute API scheduler for pushing the details to DGFT,DGFT API IRM Push Service Scheduler,IRM details available in the staging tables should be reported to DGFT end. For this process DGFT API IRM Push Service Scheduler is executed.,"Once the API scheduler is scheduled & IRM details are pushed to DGFT end , the details in the staging table gets updated as follows: 
+in DGFT_IRM_MESSAGE_MASTER 
+DGFT_ACK_STATUS : Validated
+Status :  MSG_PUSH_SUCCESS
+in DGFT_IRM_MESSAGE_DETAIL
+DGFT_ACK_STATUS : null 
+STATUS : PENDING
+","DGFT_IRM_MESSAGE_MASTER
+DGFT_IRM_MESSAGE_DETAIL"
+4,To execute Enquiry scheduler for reviewing the status of IRM pushed into staging table,DGFT IRM Enquiry Service Scheduler,"To view the status of IRM details pushed to the staging table for DGFT reporting, DGFT IRM Enquiry Service Scheduler needs to be executed. Once this scheduler is executed, it will update the progress in reporting IRM details to DGFT end in TRRACS end for our better understanding.","Once the DGFT IRM Enquiry Service Scheduler is executed,the details in the main tables get updated as follows : 
+FLAG : P
+STATUS : CANCELLED
+DGFT_FLAG : C
+DGFT_STATUS : VALIDATED
+MASTER_DETAIL_STATUS : MSG_PUSH_SUCCESS",DGFT_IRM_MASTER
+5 (i),To execute the get response status API scheduler to check if the records have been reviewed at DGFT end and to retrieve its status,DGFT API IRM Processed Status Service Scheduler,"To check if the IRM data reported via API request have been successfully reviewed by DGFT, we need to execute DGFT API IRM Processed status scheduler. This scheduler post execution will return the response provided by DGFT for the details shared to their end. The response received from DGFT for these records can either be Acknowledged /Failed.","* For cases where DGFT has still not reviewed the reported records,post this scheduler execution the details gets updated in the staging data in the below format : 
+in DGFT_IRM_MESSAGE_MASTER 
+DGFT_ACK_STATUS : Validated
+STATUS : MSG_PUSH_PENDING_PROCESS
+in DGFT_IRM_MESSAGE_DETAIL
+STATUS : PENDING
+DGFT_ACK_STATUS : Validated
+
+* For cases where DGFT has reviewed the reported records and returned a success reponse,post scheduler execution the details gets updated in the staging data in the below format : 
+in DGFT_IRM_MESSAGE_MASTER 
+DGFT_ACK_STATUS : Processed
+STATUS : MSG_PUSH_FULLY_PROCESSED
+in DGFT_IRM_MESSAGE_DETAIL
+STATUS : PROCESSED
+DGFT_ACK_STATUS : Processed","DGFT_IRM_MESSAGE_MASTER
+DGFT_IRM_MESSAGE_DETAIL"
+5(ii),To execute the get response status API scheduler to check if the records have been reviewed at DGFT end and to retrieve its status,DGFT API IRM Processed Status Service Scheduler,"To check if the IRM data reported via API request have been successfully reviewed by DGFT, we need to execute DGFT API IRM Processed status scheduler. This scheduler post execution will return the response provided by DGFT for the details shared to their end. The response received from DGFT for these records can either be Acknowledged /Failed.","* For cases where DGFT has reviewed the reported records and returned a failure response, post scheduler execution the details gets updated in the staging data in the below format : 
+
+1. when the entire records provided in the request fails, the details get updated as follows : 
+in DGFT_IRM_MESSAGE_MASTER
+DGFT_ACK_STATUS : FAILED
+STATUS : MSG_PUSH_PROCESS_FAILED
+in DGFT_IRM_MESSAGE_DETAIL
+STATUS : FAILED
+DGFT_ACK_STATUS : Errored
+
+2. when any one record/multiple records provided in the request fails,the details get updated as follows : 
+in DGFT_IRM_MESSAGE_MASTER
+DGFT_ACK_STATUS : Processed
+STATUS : MSG_PUSH_FULLY_PROCESSED
+in DGFT_IRM_MESSAGE_DETAIL
+STATUS : FAILED
+DGFT_ACK_STATUS : Errored","DGFT_IRM_MESSAGE_MASTER
+DGFT_IRM_MESSAGE_DETAIL"
+6,To execute Enquiry scheduler for reviewing the status of IRM pushed into staging table,DGFT IRM Enquiry Service Scheduler,"To view the status of IRM details pushed to the staging table for DGFT reporting, DGFT IRM Enquiry Service Scheduler needs to be executed. Once this scheduler is executed, it will update the progress in reporting IRM details to DGFT end in TRRACS end for our better understanding.","Once the DGFT IRM Enquiry Service Scheduler is executed,the details in the main tables get updated as follows : 
+FLAG : A/F [depending on dgft response for that record]
+STATUS : CANCELLED
+DGFT_FLAG : C 
+DGFT_STATUS : PROCESSED/FAILED  [depending on dgft response for that record]
+MASTER_DETAIL_STATUS : MSG_PUSH_FULLY_PROCESSED/MSG_PUSH_PROCESS_FAILED [status from staging table]",DGFT_IRM_MASTER
+,,,,,
+,,,,,
+NOTE : Please follow the same steps for reporting ORM data to DGFT end,"For ORM process , tables to refer : 
+DGFT_ORM_MASTER
+DGFT_ORM_MESSAGE_MASTER
+DGFT_ORM_MESSAGE_DETAIL",,,,

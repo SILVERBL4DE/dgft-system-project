@@ -1,6 +1,7 @@
 package com.htc.dgft.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -18,24 +19,37 @@ public class DgftOrmMaster extends BaseEntity {
     @Column(length = 200)
     private String id;
 
+    @NotBlank(message = "ORM Number is mandatory")
+    @Size(max = 50, message = "ORM Number cannot exceed 50 characters")
+    @Pattern(regexp = "^[a-zA-Z0-9]+$", message = "ORM Number must be alphanumeric")
     @Column(name = "ORM_NUMBER", length = 50)
     private String ormNumber;
 
+    @NotNull(message = "ORM Amount is mandatory")
+    @DecimalMin(value = "1.00", message = "ORM Amount must be greater than 1")
     @Column(name = "ORM_AMOUNT", precision = 16, scale = 4)
     private BigDecimal ormAmount;
 
+    @NotNull(message = "ORM Date is mandatory")
+    @PastOrPresent(message = "ORM Date cannot be in the future")
     @Column(name = "ORM_DATE")
     private LocalDate ormDate;
 
     @Column(name = "AD_CODE_ID", length = 200)
     private String adCodeId;
 
+    @NotBlank(message = "AD Code is mandatory")
+    @Size(min = 7, max = 7, message = "AD Code must be exactly 7 characters")
+    @Pattern(regexp = "^[a-zA-Z0-9]+$", message = "AD Code must be alphanumeric")
     @Column(name = "AD_CODE", length = 7)
     private String adCode;
 
+    @NotBlank(message = "Currency is mandatory")
+    @Size(max = 3, message = "Currency cannot exceed 3 characters")
     @Column(name = "ORM_CURRENCY", length = 3)
     private String ormCurrency;
 
+    @Size(max = 10, message = "IE Code cannot exceed 10 characters")
     @Column(name = "IE_CODE", length = 10)
     private String ieCode;
 
@@ -45,21 +59,32 @@ public class DgftOrmMaster extends BaseEntity {
     @Column(name = "IE_PAN", length = 10)
     private String iePan;
 
+    @NotBlank(message = "Beneficiary Name is mandatory")
+    @Size(max = 200, message = "Beneficiary Name cannot exceed 200 characters")
+    @Pattern(regexp = "^[a-zA-Z0-9\\-_/\\\\.,;:*!#$@+^?\\s]+$", message = "Beneficiary Name contains invalid characters")
     @Column(name = "BENEFICIARY_NAME", length = 100)
     private String beneficiaryName;
 
+    @NotBlank(message = "Beneficiary Country is mandatory")
+    @Size(max = 20, message = "Beneficiary Country cannot exceed 20 characters")
     @Column(name = "BENEFICIARY_COUNTRY", length = 3)
     private String beneficiaryCountry;
 
+    @NotBlank(message = "Purpose Code is mandatory")
+    @Size(max = 10, message = "Purpose Code cannot exceed 10 characters")
     @Column(name = "PURPOSE_CODE", length = 20)
     private String purposeCode;
 
+    @NotBlank(message = "IFSC Code is mandatory")
+    @Pattern(regexp = "^[a-zA-Z0-9]{11}$", message = "IFSC Code must be 11 alphanumeric characters")
     @Column(name = "IFSC_CODE", length = 11)
     private String ifscCode;
 
     @Column(name = "INR_PAYABLE_AMOUNT", precision = 16, scale = 2)
     private BigDecimal inrPayableAmount;
 
+    @NotBlank(message = "PAN Number is mandatory")
+    @Pattern(regexp = "^[a-zA-Z0-9]{10}$", message = "PAN Number must be 10 alphanumeric characters")
     @Column(name = "PAN_NUMBER", length = 10)
     private String panNumber;
 
@@ -90,6 +115,7 @@ public class DgftOrmMaster extends BaseEntity {
     @Column(name = "REFERENCE_IRM", length = 50)
     private String referenceIrm;
 
+    @PastOrPresent(message = "ORM Issue Date cannot be in the future")
     @Column(name = "ORM_ISSUE_DATE")
     private LocalDate ormIssueDate;
 
