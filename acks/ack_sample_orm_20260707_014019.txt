@@ -1,0 +1,7 @@
+--- UPLOAD ACKNOWLEDGMENT ---
+Timestamp: 2026-07-07T01:40:19.187752349
+Original File: sample_orm.csv
+-----------------------------
+Line 2 [ORM99001] - SUCCESS
+Line 3 [ORM99002] - SUCCESS
+Line 4 [ORM99003] - SUCCESS

@@ -37,6 +37,8 @@ public class ScreenUploadService {
     public String processCsvUpload(MultipartFile file) {
         List<DgftOrmMaster> validRecords = new ArrayList<>();
         List<String> ackLogs = new ArrayList<>();
+        int failedCount = 0;
+        
         ackLogs.add("--- UPLOAD ACKNOWLEDGMENT ---");
         ackLogs.add("Timestamp: " + LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         ackLogs.add("Original File: " + file.getOriginalFilename());
@@ -62,6 +64,7 @@ public class ScreenUploadService {
                 String[] columns = line.split("\\|");
                 if (columns.length < 13) {
                     ackLogs.add("Line " + lineNumber + " - FAILED: Insufficient columns.");
+                    failedCount++;
                     lineNumber++;
                     continue;
                 }
@@ -85,6 +88,7 @@ public class ScreenUploadService {
                     String purposeCode = columns[12].trim();
                     if (purposeCodeMasterRepository.findByCode(purposeCode).isEmpty()) {
                         ackLogs.add("Line " + lineNumber + " [" + columns[0].trim() + "] - FAILED: Purpose Code " + purposeCode + " is invalid.");
+                        failedCount++;
                         lineNumber++;
                         continue;
                     }
@@ -107,6 +111,7 @@ public class ScreenUploadService {
                             sb.append(violation.getMessage()).append("; ");
                         }
                         ackLogs.add("Line " + lineNumber + " [" + orm.getOrmNumber() + "] - FAILED: " + sb.toString());
+                        failedCount++;
                         lineNumber++;
                         continue;
                     }
@@ -115,6 +120,7 @@ public class ScreenUploadService {
                     ackLogs.add("Line " + lineNumber + " [" + orm.getOrmNumber() + "] - SUCCESS");
                 } catch (Exception e) {
                     ackLogs.add("Line " + lineNumber + " - FAILED: Error parsing data - " + e.getMessage());
+                    failedCount++;
                 }
 
                 lineNumber++;
@@ -132,7 +138,11 @@ public class ScreenUploadService {
             Path ackFilePath = ackDirPath.resolve(ackFilename);
             Files.write(ackFilePath, ackLogs, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
-            return "Upload completed. Processed " + validRecords.size() + " valid records. ACK file generated at: " + ackFilePath.toAbsolutePath().toString();
+            if (validRecords.isEmpty()) {
+                return "Upload failed. 0 valid records processed. Failed records: " + failedCount + ". ACK file generated at: " + ackFilePath.toAbsolutePath().toString();
+            }
+
+            return "Upload completed. Processed " + validRecords.size() + " valid records. Failed records: " + failedCount + ". ACK file generated at: " + ackFilePath.toAbsolutePath().toString();
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to process CSV file: " + e.getMessage());

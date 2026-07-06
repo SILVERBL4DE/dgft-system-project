@@ -1,0 +1,7 @@
+--- UPLOAD ACKNOWLEDGMENT ---
+Timestamp: 2026-07-07T01:36:50.674036669
+Original File: sample_orm.csv
+-----------------------------
+Line 2 [ORM99001] - FAILED: ORM Issue Date cannot be in the future; ORM Date cannot be in the future; 
+Line 3 [ORM99002] - FAILED: ORM Date cannot be in the future; ORM Issue Date cannot be in the future; 
+Line 4 [ORM99003] - FAILED: ORM Date cannot be in the future; ORM Issue Date cannot be in the future; 
